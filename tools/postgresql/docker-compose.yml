@@ -1,0 +1,41 @@
+# Postgres, on its own compose lifecycle independent of every other piece —
+# each tool gets its own directory + own .env (see .env.example here) rather
+# than sharing one, so adding tools/nginx/ or similar later doesn't mean
+# touching this one. Start this first, before the app stack
+# (../../docker-compose.yml):
+#   docker compose -f tools/postgresql/docker-compose.yml up -d
+name: sme-pos-tools-postgresql
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sme-pos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smepos}
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+    ports:
+      # Host-side 5433, not 5432: lets this stack run alongside a Postgres
+      # already bound to 5432 on the host (e.g. a non-Dockerized local dev
+      # setup) without a port clash. Containers on sme-pos-network still
+      # reach it as postgres:5432 — this mapping is only for host-side
+      # access (e.g. psql from the host for debugging).
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - sme-pos-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-smepos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sme-pos-network
+
+networks:
+  sme-pos-network:
+    name: sme-pos-network
+
+volumes:
+  sme-pos-postgres-data:
+    name: sme-pos-postgres-data

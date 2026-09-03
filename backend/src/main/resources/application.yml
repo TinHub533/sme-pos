@@ -1,0 +1,93 @@
+spring:
+  application:
+    name: sme-pos
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smepos
+    username: user
+    password: pass
+  jpa:
+    hibernate:
+      ddl-auto: validate   # schema is owned by Flyway, not Hibernate
+    open-in-view: false     # avoid lazy-loading surprises outside service boundaries
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      # Deliberately only these two, not the Actuator default set — env/beans/
+      # mappings/loggers can leak secrets or internals. SecurityConfig gates
+      # /actuator/health public and everything else under /actuator/** as
+      # ADMIN-only, but exposure.include is the first line of defense: an
+      # endpoint that's never exposed over HTTP can't be reached at all,
+      # regardless of what the security rules say.
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # UP/DOWN only for the public /actuator/health used by readiness
+      # checks (Docker healthchecks, wait-loops); full component details
+      # (DB connection state, disk space, etc.) only for an authenticated
+      # ADMIN, via SecurityConfig's role gate on the rest of /actuator/**.
+      show-details: when-authorized
+      roles: ADMIN
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+# Public via /actuator/info (SecurityConfig permits it alongside health) —
+# just app identity, nothing sensitive, so it stays public rather than
+# joining the ADMIN-gated rest of /actuator/**.
+info:
+  app:
+    name: ${spring.application.name}
+    version: "@project.version@"
+
+jwt:
+  # In real deployment this comes from an env var / secrets manager, never
+  # checked into source. Placeholder here is 256-bit for HS256.
+  secret: ${JWT_SECRET:change-this-to-a-long-random-secret-in-prod-please}
+  expiration-minutes: 60
+
+khqr:
+  # Shared-secret HMAC for verifying /webhooks/khqr/payment-confirm — same
+  # idea every real gateway uses (Stripe, PayWay, etc.), just with their own
+  # header name/algorithm. Swap this for whatever your actual provider's
+  # webhook security spec requires once GATEWAY mode is really integrated.
+  webhook-secret: ${KHQR_WEBHOOK_SECRET:change-this-in-prod-to-a-real-shared-secret}
+  # No live FX feed here — a static, manually-updated rate is what this
+  # stands in for KhqrPaymentService's KHR-denominated quotes. Real
+  # production use needs either the gateway's own conversion or a real FX
+  # API; this only exists so the amount encoded isn't silently wrong.
+  usd-to-khr-rate: ${KHQR_USD_TO_KHR_RATE:4100}
+
+app:
+  # See RateLimitInterceptor's own comment on why this defaults to false —
+  # only safe to flip on in a deployment where the backend's 8080 is
+  # genuinely unreachable except through tools/nginx/.
+  trust-proxy-headers: ${APP_TRUST_PROXY_HEADERS:false}
+
+logging:
+  level:
+    # No com.smepos code actually calls .debug(...) today, so this is
+    # preventive, not fixing an active leak — but hardcoding DEBUG as the
+    # permanent default meant the day someone adds a debug log line (e.g.
+    # while troubleshooting the JWT/auth flow) it would ship straight to
+    # production at that verbosity with no separate opt-in. INFO is the
+    # safe default everywhere; set LOG_LEVEL_COM_SMEPOS=DEBUG locally
+    # (e.g. in a shell env or IDE run config) when you actually need it.
+    com.smepos: ${LOG_LEVEL_COM_SMEPOS:INFO}

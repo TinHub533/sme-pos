@@ -1,0 +1,56 @@
+# App services. Requires tools/postgresql/docker-compose.yml already
+# running (for postgres + the shared sme-pos-network):
+#   docker compose -f tools/postgresql/docker-compose.yml up -d
+#   docker compose up -d --build
+name: sme-pos-apps
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sme-pos-backend
+    restart: unless-stopped
+    environment:
+      # POSTGRES_DB/USER/PASSWORD here must match tools/postgresql/.env —
+      # that's the source of truth for the actual database credentials,
+      # this just has to agree with it.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://sme-pos-postgres:5432/${POSTGRES_DB:-smepos}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      # Override these in a real deployment — see backend/src/main/resources/
+      # application.yml for what each one guards.
+      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-long-random-secret-in-prod-please}
+      KHQR_WEBHOOK_SECRET: ${KHQR_WEBHOOK_SECRET:-change-this-in-prod-to-a-real-shared-secret}
+      KHQR_USD_TO_KHR_RATE: ${KHQR_USD_TO_KHR_RATE:-4100}
+      # Stays false unless you're deploying behind tools/nginx/ AND no
+      # longer publishing 8080 below directly — see RateLimitInterceptor's
+      # own comment for why this isn't on by default just because nginx
+      # might exist somewhere.
+      APP_TRUST_PROXY_HEADERS: ${APP_TRUST_PROXY_HEADERS:-false}
+    ports:
+      - "8080:8080"
+    networks:
+      - sme-pos-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sme-pos-frontend
+    restart: unless-stopped
+    environment:
+      # Server-only (Route Handlers / Server Components) — never shipped to
+      # the browser, so the container-network hostname is fine here.
+      BACKEND_URL: http://sme-pos-backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - sme-pos-network
+
+networks:
+  sme-pos-network:
+    external: true
+    name: sme-pos-network

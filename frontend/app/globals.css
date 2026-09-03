@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-900;
+  }
+}
+
+@media print {
+  /* Chrome's default print margin is ~12.7mm (0.5in) a side — fine on
+     Letter/A4, but a real waste on an 80mm (or 58mm) thermal receipt roll,
+     where that's a third or more of the usable width gone before any
+     content starts. No explicit `size:` here on purpose: that would pin
+     every print — including a normal sheet printer — to one physical
+     width. Shrinking the margin instead helps narrow roll paper without
+     forcing anything on wide paper. */
+  @page {
+    margin: 6mm;
+  }
+}
