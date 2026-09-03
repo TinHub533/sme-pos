@@ -1,14 +1,4 @@
-# Reverse proxy, on its own compose lifecycle like every other tool here —
-# see tools/postgresql/docker-compose.yml for the reasoning. Requires the
-# app services (../../docker-compose.yml) already running, since this
-# proxies to their container names on the shared network; start order
-# doesn't matter the other way (nginx itself doesn't need to be up for the
-# app services to work — they're still separately reachable on their own
-# published ports for local dev, same as before this existed):
-#   docker compose -f tools/postgresql/docker-compose.yml up -d
-#   docker compose up -d --build
-#   docker compose -f tools/nginx/docker-compose.yml up -d
-name: sme-pos-tools-nginx
+name: sme-pos-nginx
 
 services:
   nginx:
@@ -18,12 +8,6 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      # Host-side 8000, not 80: avoids needing root/elevated privileges to
-      # bind it on most systems, and avoids clashing with anything else
-      # already using 80 locally — same reasoning as Postgres's 5433 in
-      # tools/postgresql/. A real deployment would put this behind a real
-      # domain anyway, at which point the actual port mapping matters less
-      # than the hostname/cert.
       - "${NGINX_HTTP_PORT:-8000}:80"
     networks:
       - sme-pos-network
